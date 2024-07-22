@@ -10,8 +10,8 @@ class PretrainVae(object):
             subfolder="vae",
             cache_dir="./vae/pretrain_vae"
         ).to(DEVICE)
-        self.vae.requires_grad_(False)
         self.middle_c = 4
+        self.vae.requires_grad_(False)
 
     def encoder(self, x):
         latents = self.vae.encode(x)
@@ -21,7 +21,7 @@ class PretrainVae(object):
         return mean, var
 
     def decoder(self, latents):
-        latents = latents / 0.18215
+        latents = latents / 0.18215     # 归一化，照搬
         output = self.vae.decode(latents).sample
         return output
 
