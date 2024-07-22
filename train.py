@@ -250,7 +250,7 @@ if __name__ == "__main__":
     # 手动加载模型
     if opt.load_check_point is not None and False:
         if opt.use_ema and opt.ema_check_point is not None:
-            unet = common. modelLoad(unet, opt.ema_check_point)
+            unet = common.modelLoad(unet, opt.ema_check_point)
             ema.Register()
         unet = common.modelLoad(unet, opt.load_check_point)
 
@@ -300,7 +300,7 @@ if __name__ == "__main__":
     for epoch in range(opt.start_epoch, opt.epochs):
         e_st = time()
         epoch_loss = 0
-        data_iter = DataIter([dataloader256, dataloader512])
+        data_iter = DataIter([dataloader512])
         data_len = len(data_iter)
 
         print("now epoch", epoch)
@@ -335,7 +335,7 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
 
         if opt.start_use_scheduler <= epoch:
-            scheduler.step()
+            scheduler.step()    # 调度器更新optimizer学习率
             print(" scheduler.step ")
 
         loss_mean = epoch_loss / data_len
@@ -348,33 +348,28 @@ if __name__ == "__main__":
             with open(opt.save_best_loss, 'w') as file:
                 file.write(str(loss_mean))
                 file.close()
-            common.modelSave(unet, opt.model_save_path, f"{opt.model_name}_best.pth")
-            common.modelSave(optimizer, opt.model_save_path, "optimizer_best.pth")
+            if opt.use_ema:
+                ema.Apply_shadow()
+                common.modelSave(unet, opt.model_save_path, f"{opt.model_name}_ema_best.pth")
+                ema.Restore()  # 换回更新的参数
+            common.modelSave(unet, opt.model_save_path, f"{opt.model_name}_best.pth")   # unet
+            common.modelSave(optimizer, opt.model_save_path, "optimizer_best.pth")      # optimizer
 
         # 测试模型并产生图片
         if epoch % opt.save_img_step == 0:
-            wandb_log = val_loss_and_sample(unet, ema, [val_dataloader256, val_dataloader512], vae, wandb_log, epoch, opt)
+            wandb_log = val_loss_and_sample(unet, ema, [val_dataloader512], vae, wandb_log, epoch, opt)
         if USE_WANDB:
             wandb.log(wandb_log)
 
-        # 保存模型参数
-        if epoch > 0 and epoch % opt.save_model_step == 0:
-            if opt.use_ema:
-                ema.Apply_shadow()
-                common.modelSave(unet, opt.model_save_path, f"{opt.model_name}_ema.pth")
-                ema.Restore()  # 换回更新的参数
-            common.modelSave(unet, opt.model_save_path, f"{opt.model_name}_ep{epoch if opt.save_every_check_point else 'n'}.pth")
-            common.modelSave(optimizer, opt.model_save_path, "optimizer.pth")
-
-    # 保存最后的模型
-    if opt.use_ema:
-        ema.Apply_shadow()
-        common.modelSave(unet, opt.model_save_path, f"{opt.model_name}_ema_last.pth")
-        ema.Restore()  # 换回更新的参数
-    common.modelSave(unet, opt.model_save_path, f"{opt.model_name}_ep_last.pth")
-    common.modelSave(optimizer, opt.model_save_path, "optimizer_last.pth")
+        # 保存最后的模型
+        if opt.use_ema:
+            ema.Apply_shadow()
+            common.modelSave(unet, opt.model_save_path, f"{opt.model_name}_ema_last.pth")
+            ema.Restore()  # 换回更新的参数
+        common.modelSave(unet, opt.model_save_path, f"{opt.model_name}_ep_last.pth")
+        common.modelSave(optimizer, opt.model_save_path, "optimizer_last.pth")
 
     if USE_WANDB:
-        wandb_log = val_loss_and_sample(unet, ema, [val_dataloader256, val_dataloader512], vae, {}, epoch, opt)
+        wandb_log = val_loss_and_sample(unet, ema, [val_dataloader512], vae, {}, epoch, opt)
         wandb.log(wandb_log)
         wandb.finish()

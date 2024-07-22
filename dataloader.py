@@ -68,8 +68,8 @@ class UDataset(Dataset):
         :param train: 是否训练集
         """
         super(Dataset, self).__init__()
-        self.data = np.load(f"./datasets/data15_sdvae_{data_size}.npy")
-        self.data = np.concatenate([self.data, np.load(f"./datasets/data18_sdvae_{data_size}.npy")], axis=0)
+        self.data = np.load(f"./datasets/face-{data_size}-1.5-npy.npy")[:100]
+        self.data = np.concatenate([self.data, np.load(f"./datasets/face-{data_size}-1.5-npy.npy")[:100]], axis=0)
         if not train:
             val_size = int(val_size * len(self.data))
             indices = np.random.choice(len(self.data), size=val_size, replace=False)

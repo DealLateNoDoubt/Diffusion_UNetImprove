@@ -1,10 +1,15 @@
-import torch
-import numpy as np
+"""
+根据训练完毕的权重unet模型数据，使用ddim去噪扩散隐式模型来实现生成图片
+"""
+
+
 from tqdm.auto import trange
 from plotly import graph_objects as go
+
 from common import *
 from net import UNet
-from vae import VAE
+from vae import PretrainVae
+# import train
 
 def betas_for_alpha_bar(num_diffusion_timesteps, alpha_bar, max_beta=0.999):
     """
@@ -83,9 +88,8 @@ def get_afa_bars(beta_schedule_name, total_step):
     return afas_cumprod, betas
 
 @torch.no_grad()
-def simply_sampler(model, x, betas, afa_bars, normal_t, istrain=False):
+def simply_sampler(model, x, betas, afa_bars, normal_t, istrain=False): # 简单采样器
     """
-
     :param model: 模型
     :param x: 最初的输入
     :param betas: 加噪时的beta
@@ -219,6 +223,7 @@ def sample(unet, vae, batch_size, latten_shape, epoch, step, beta_schedule_name,
             res = x0
         else:
             res = torch.concatenate((res, x0), dim=0)
+    print("simply_sampler-down")
     res = res.cpu().numpy()
     res = np.asarray(res * 255)
     res = np.transpose(res, [0, 2, 3, 1])  # RGB
@@ -226,68 +231,37 @@ def sample(unet, vae, batch_size, latten_shape, epoch, step, beta_schedule_name,
 
 
 if __name__ == '__main__':
-    import cv2, os
+    opt = train.parse_opt()
 
-    """
-    # 模型结构相关  att_uncontrol4
-    "en_out_c": (64, 64, 128, 256, 256, 256, 512, 640),
-    "en_down": (0, 0, 1, 0, 1, 0, 1, 0),
-    "en_skip": (0, 1, 0, 1, 0, 1, 0, 1),
-    "de_out_c": (512, 256, 256, 256, 128, 64, 64, 32),
-    "de_up": ("none", "subpix", "none", "subpix", "none", "subpix", "none", "none"),
-    "de_skip": (1, 0, 1, 0, 1, 0, 1, 0),
-    "t_out_c": 256,
-    """
+    unet = UNet(
+        opt.en_out_c, opt.en_down, opt.en_skip, opt.en_att_heads,
+        opt.de_out_c, opt.de_up, opt.de_skip, opt.de_att_heads,
+        opt.t_out_c, opt.vae_c, opt.block_deep,
+    ).to(DEVICE)
 
-    device = "cuda"
-    config = {
-        "epochs": 1,
-        "batch_size": 4,
+    if opt.use_ema or True:
+        unet = modelLoad(unet, "./weight/nvae_uncontrol2_lion/unc_unet_ema.pth")
+    unet = modelLoad(unet, "./weight/nvae_uncontrol2_lion/unc_unet_best.pth")
 
-        # 模型结构相关
-        "en_out_c": (64, 64, 64, 128, 256, 256, 256, 512, 688),
-        "en_down": (0, 0, 0, 1, 0, 1, 0, 1, 0),
-        "en_skip": (0, 0, 1, 0, 1, 0, 1, 0, 1),
-        "en_att_heads": (-1, -1, -1, 0, -1, 0, -1, 0, -1),
-        "de_out_c": (512, 256, 256, 256, 128, 64, 64, 64, 64),
-        "de_up": ("none", "subpix", "none", "subpix", "none", "subpix", "none", "none", "none"),
-        "de_skip": (1, 0, 1, 0, 1, 0, 1, 0, 0),
-        "de_att_heads": (0, -1, 0, -1, 0, -1, 0, 0, 0),
-        "t_out_c": 256,
+    vae = PretrainVae()
 
-        "model_save_path": "./weight/att_uncontrol5_prodigy",
-        "model_name": "unc_unet",
-        "model_tail": "ep1050",
+    imgs = sample(
+        unet,
+        vae,
+        batch_size=8,
+        latten_shape=32,
+        epoch=1,
+        step=opt.sample_img_step,
+        beta_schedule_name=opt.beta_schedule_name,
+        hold_xt=True,
+        normal_t=opt.normal_t,
+        istrain=True,
+        device=DEVICE,
+    )
 
-        # 加噪相关
-        "total_step": 1000,
-        "beta_schedule_name": "cosine",
+    print("sample-down")
 
-        "img_save_path": r"./weight/att_uncontrol5_prodigy/samples",
-
-        # 其他
-        "模型生成是否可控": False,
-    }
-
-    unet = UNet(config["en_out_c"], config["en_down"], config["en_skip"], config["en_att_heads"],
-                config["de_out_c"], config["de_up"], config["de_skip"], config["de_att_heads"],
-                config["t_out_c"]).to(device).eval()
-    unet = modelLoad(unet, os.path.join(config["model_save_path"],
-                                        f"{config['model_name']}_{config['model_tail']}.pth"))
-
-    vae_middle_c = 8
-    vae = VAE(vae_middle_c, device).to(device).eval()
-    vae = modelLoad(vae,
-                    os.path.join("vae/weight/vgg_perce_gram_l2_vae_small_kl_f8_c8_bigger_model", "vae_50.pth"))
-
-    imgs = sample(unet, vae,
-                  config["batch_size"], config["epochs"],
-                  config["total_step"], config["beta_schedule_name"],
-                  hold_xt=False, normal_t=False, istrain=False, device=device)
     img = merge_images(imgs)
     img = img[:, :, ::-1]
-    if not os.path.exists(config["img_save_path"]):
-        os.mkdir(config["img_save_path"])
-    cv2.imwrite(os.path.join(config["img_save_path"], f"sample_{config['model_tail']}.png"), img)
     cv2.imshow("imgs", img)
     cv2.waitKey(0)

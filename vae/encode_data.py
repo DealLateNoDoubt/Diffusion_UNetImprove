@@ -17,11 +17,9 @@ class ImgDataset(Dataset):
     def __init__(
             self,
             path,
-            use_pretrain_vae=True,
     ):
         super(ImgDataset, self).__init__()
         self.data_path = self.read_photo_path(path)
-        self.use_pretrain_vae = use_pretrain_vae
 
     def read_photo_path(self, path):
         file_paths = []
@@ -34,15 +32,10 @@ class ImgDataset(Dataset):
 
     def to_tenser(self, plt_img):
         img = np.array(plt_img, dtype=np.float32)
-
         img_mirrored = plt_img.transpose(Image.FLIP_LEFT_RIGHT)
         img_mirrored = np.array(img_mirrored, dtype=np.float32)
-        if not self.use_pretrain_vae:
-            data = np.asarray(img / 127.5 - 1, dtype=np.float32)
-            data_mirrored = np.asarray(img_mirrored / 127.5 - 1, dtype=np.float32)
-        else:
-            data = np.array(img / 255, dtype=np.float32)
-            data_mirrored = np.asarray(img_mirrored / 255, dtype=np.float32)
+        data = np.array(img / 255, dtype=np.float32)
+        data_mirrored = np.asarray(img_mirrored / 255, dtype=np.float32)
         return np.transpose(data, (2, 0, 1)), np.transpose(data_mirrored, (2, 0, 1))
 
     def __len__(self):
@@ -117,7 +110,7 @@ def merge_npy():
     for root in roots:
         npy_data = None
         for name in os.listdir(root):
-            if name.startswith("256"):
+            if name.startswith("512"):
                 data = np.load(os.path.join(root, name))
                 if npy_data is None:
                     npy_data = data
