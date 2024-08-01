@@ -11,12 +11,12 @@
 #### 模型详情：net/unet_improve.py
 
 # 模型训练：
-#### 基于yolov8-pose训练出能够提取头部特征的模型来获取训练集数据；
-#### loss函数使用均方损失函数（MSELoss）；
-#### optimizer使用adamW，吸取动量变化；
-#### 使用预热启动和余弦退火实现对学习率(LearningRate)在训练过程中动态调整;
-#### 实现EMA(ExponentialMovingAverage)模型可梯度变化参数平均移动，实现记录unet模型中可梯度变化参数和更新;
-#### 基于EMA记录的权重来进行推理；
+#### · 基于yolov8-pose训练出能够提取头部特征的模型来获取训练集数据；
+#### · loss函数使用均方损失函数（MSELoss）；
+#### · optimizer使用adamW，吸取动量变化；
+#### · 使用预热启动和余弦退火实现对学习率(LearningRate)在训练过程中动态调整;
+#### · 实现EMA(ExponentialMovingAverage)模型可梯度变化参数平均移动，实现记录unet模型中可梯度变化参数和更新;
+#### · 基于EMA记录的权重来进行推理；
 
 #### 模型训练1000+后，loss值在0.15左右，任由下降趋势；
 ![e37e342a1e2acac6c2e68ec03f99e40](https://github.com/user-attachments/assets/749dc6e3-9b74-43ea-a85a-195d1485dfe1)
