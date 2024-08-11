@@ -1,5 +1,5 @@
 # Diffusion_UNetImprove
-## 基于Diffusion原理，实现Unet + vae 实现动漫人物头像生成
+## 基于DDPM原理，实现Unet + vae 实现动漫人物头像生成
 ![fed9cecaf6d29688e02ce5abf57fb24](https://github.com/user-attachments/assets/f66eece1-4d0d-4193-be38-90ee38e64ce2)
 
 # Unet模型：
