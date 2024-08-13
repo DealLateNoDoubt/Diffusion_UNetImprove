@@ -87,7 +87,7 @@ class GroupNorm(nn.Module):
 
 class Swish(nn.Module):
     """
-    非单调激活函数
+    非单调激活函数，通过 Sigmoid 函数对输入进行缩放，可以控制激活值的大小，有助于防止梯度消失或爆炸问题。
     """
     def __init__(self):
         super(Swish, self).__init__()

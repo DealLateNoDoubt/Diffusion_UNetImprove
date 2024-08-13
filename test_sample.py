@@ -9,7 +9,6 @@ from plotly import graph_objects as go
 from common import *
 from net import UNet
 from vae import PretrainVae
-# import train
 
 def betas_for_alpha_bar(num_diffusion_timesteps, alpha_bar, max_beta=0.999):
     """
@@ -53,8 +52,7 @@ def get_named_beta_schedule(schedule_name, num_diffusion_timesteps):
         scale = 1000 / num_diffusion_timesteps
         beta_start = scale * 0.0001
         beta_end = scale * 0.02
-        return np.linspace(
-            beta_start ** 0.5, beta_end ** 0.5, num_diffusion_timesteps, dtype=np.float64) ** 2
+        return np.linspace(beta_start ** 0.5, beta_end ** 0.5, num_diffusion_timesteps, dtype=np.float64) ** 2
     elif schedule_name == "cosine":
         return betas_for_alpha_bar(
             num_diffusion_timesteps,
@@ -113,7 +111,13 @@ def simply_sampler(model, x, betas, afa_bars, normal_t, istrain=False): # 简单
         x_coffsOuts = []  # x - coeff * z_t
         coeff_z_t = []  # coeff * z_t
         vs = []  # 方差
-
+    """
+    使用 for 循环从 total_step 到 1 逆序迭代。在每次迭代中：
+        计算当前步的时间参数 t。
+        计算系数 coeff，这个系数将用于调整模型输出 z_t。
+        通过模型获取当前步的输出 z_t。
+        如果是第一步，直接使用均值更新 x；如果是后续步骤，使用一个随机过程更新 x，该过程考虑了方差 v。
+    """
     for i in trange(total_step, 0, -1):  # , disable=None
         if normal_t:
             t = torch.tensor([i / total_step])[None, :].to(x.device)
@@ -122,7 +126,6 @@ def simply_sampler(model, x, betas, afa_bars, normal_t, istrain=False): # 简单
         t = torch.tile(t, (batch_size, 1))
 
         coeff = betas[i - 1] / (torch.sqrt(1 - afa_bars[i - 1]))  # + 1e-5
-
         z_t = model(x, t)
         # z_t.clamp(-1, 1)
         z_t_s.append(z_t.cpu().numpy())
@@ -208,16 +211,18 @@ def sample(unet, vae, batch_size, latten_shape, epoch, step, beta_schedule_name,
 
     for e in range(epoch):
         print(f"sample-epoch: {e}/{epoch}")
+        # 给定一个噪声xt
         xt = torch.randn((batch_size, vae.middle_c, latten_shape, latten_shape)).to(device)
         # xt += data_mean
         if hold_xt:
             xt = holded_xt
         # xt = torch.clip(xt, -1, 1)
+        # 通过simply_sampler函数生成一个去噪后的潜在表示x0
         x0 = simply_sampler(unet, xt, betas, afa_bars, normal_t, istrain=istrain)
 
         # afa_bars = afa_bars[::-1].copy()
         # x0 = sample_dpmpp_2m_test(unet, xt, afa_bars)
-
+        # 使用VAE的解码器将这个潜在表示解码成可视化的图像
         x0 = vae.decoder(x0)
         if res is None:
             res = x0
@@ -231,6 +236,7 @@ def sample(unet, vae, batch_size, latten_shape, epoch, step, beta_schedule_name,
 
 
 if __name__ == '__main__':
+    import train
     opt = train.parse_opt()
 
     unet = UNet(
@@ -240,7 +246,7 @@ if __name__ == '__main__':
     ).to(DEVICE)
 
     if opt.use_ema or True:
-        unet = modelLoad(unet, "./weight/nvae_uncontrol2_lion/unc_unet_ema.pth")
+        unet = modelLoad(unet, "./weight/nvae_uncontrol2_lion/unc_unet_ema_best.pth")
     unet = modelLoad(unet, "./weight/nvae_uncontrol2_lion/unc_unet_best.pth")
 
     vae = PretrainVae()
@@ -248,9 +254,9 @@ if __name__ == '__main__':
     imgs = sample(
         unet,
         vae,
-        batch_size=8,
+        batch_size=1,
         latten_shape=32,
-        epoch=1,
+        epoch=2,
         step=opt.sample_img_step,
         beta_schedule_name=opt.beta_schedule_name,
         hold_xt=True,
